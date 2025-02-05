@@ -267,7 +267,7 @@
                 let currentBalance = localStorage.getItem('userBalance');
                 
                 // Check if the current balance is enough for withdrawal and at least 350 BDT
-                if (currentBalance >= 350) {
+                if (currentBalance >= 3000) {
                     if (currentBalance >= amount) {
                         currentBalance -= amount;
                         localStorage.setItem('userBalance', currentBalance);
@@ -280,7 +280,7 @@
                         alert("আপনার পর্যাপ্ত ব্যালেন্স নেই।");
                     }
                 } else {
-                    alert("আপনার ব্যালেন্স কমপক্ষে ৩৫০ টাকা হওয়া প্রয়োজন উত্তোলন করার জন্য।");
+                    alert("আপনার ব্যালেন্স কমপক্ষে 3000 টাকা হওয়া প্রয়োজন উত্তোলন করার জন্য।");
                 }
             } else {
                 alert("অনুগ্রহ করে সব তথ্য পূর্ণ করুন!");
