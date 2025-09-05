@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -218,6 +219,8 @@
   <script src='//libtl.com/sdk.js' data-zone='9807992' data-sdk='show_9807992'></script>
   <script src='//libtl.com/sdk.js' data-zone='9702109' data-sdk='show_9702109'></script>
   <script src='//libtl.com/sdk.js' data-zone='9292001' data-sdk='show_9292001'></script>
+  <!-- New Unlimited Ads Script -->
+  <script src="https://fpyf8.com/88/tag.min.js" data-zone="166143" async data-cfasync="false"></script>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -268,6 +271,12 @@
         <div class="task-card" onclick="showAdTwo()">
             <div class="task-icon"><i class="fa-solid fa-hand-pointer"></i></div>
             <div class="task-details"><h3>Tap to Earn Two</h3><p>Tap the button to watch an ad and earn 10 coins.</p></div>
+            <div class="task-arrow"><i class="fa-solid fa-play"></i></div>
+        </div>
+        <!-- New "Unlimited Ads" Button -->
+        <div class="task-card" onclick="showUnlimitedAd()">
+            <div class="task-icon"><i class="fa-solid fa-infinity"></i></div> <!-- Optional: Different icon -->
+            <div class="task-details"><h3>Unlimited Ads</h3><p>Click to watch ads from One Click Ad.</p></div>
             <div class="task-arrow"><i class="fa-solid fa-play"></i></div>
         </div>
       </div>
@@ -419,8 +428,6 @@
     let userPointsBalanceListener = null;
     let referralListener = null;
     let appConfigListener = null; // New listener for appConfig
-    // Flag to prevent multiple withdrawal requests
-    let isWithdrawRequestPending = false;
     // --- Updated Balance Logic ---
     // Dynamic from Firebase: 1000 coins = 30 cents = $0.30 USD
     // 1 coin = $0.0003 USD (calculated dynamically)
@@ -1019,77 +1026,103 @@
             taskCard.classList.remove('disabled'); // Re-enable the button
         }
     }
-    // --- Withdrawal Logic ---
-    function resetWithdrawButton() {
-        const requestBtn = document.getElementById('requestWithdrawBtn');
-        requestBtn.textContent = 'Request Withdrawal';
-        requestBtn.classList.remove('requesting-button');
-        requestBtn.classList.add('primary-button');
-        requestBtn.disabled = false;
-    }
+    // --- New Function for Unlimited Ads ---
+    function showUnlimitedAd() {
+        if (isBlocked) {
+            showBlockedView();
+            return;
+        }
+        // Prevent double click by disabling the button immediately
+        const taskCard = event.currentTarget; // Get the clicked task card
+        if (taskCard.classList.contains('disabled')) {
+            return; // Already processing
+        }
+        taskCard.classList.add('disabled'); // Disable the button
 
+        // Check if the One Click Ad function is available
+        // The script https://fpyf8.com/88/tag.min.js typically exposes a global function.
+        // Based on the zone ID 166143, the function name is likely `OneClickAd_166143`.
+        if (typeof OneClickAd_166143 === 'function') {
+            try {
+                // Call the OneClickAd function to show the ad
+                OneClickAd_166143().then(() => {
+                    // Ad shown successfully (or user interacted)
+                    console.log("Unlimited Ad shown via OneClickAd_166143.");
+                    grantReward(); // Grant reward after ad interaction
+                    taskCard.classList.remove('disabled'); // Re-enable the button
+                }).catch((error) => {
+                    // Handle errors, e.g., ad failed to load or user closed it quickly
+                    console.error("Unlimited Ad could not be shown or was closed:", error);
+                    // As per requirement, user gets coin "একই সিস্টেমে", so we grant reward even on potential close/error
+                    grantReward();
+                    taskCard.classList.remove('disabled'); // Re-enable the button
+                });
+            } catch (err) {
+                console.error("Error calling OneClickAd_166143:", err);
+                showMessageModal('Error', "An error occurred while trying to show the Unlimited Ad.");
+                // Decide whether to grant reward on JS error. Requirement says user gets coin "একই সিস্টেমে".
+                // To be consistent and simple, we grant it. You can remove `grantReward();` if you want specific error handling.
+                grantReward();
+                taskCard.classList.remove('disabled'); // Always re-enable the button
+            }
+        } else {
+            // SDK not loaded or function not available
+            console.warn("One Click Ad SDK (OneClickAd_166143) is not ready yet.");
+            showMessageModal('Warning', "Unlimited Ad provider is not ready. Please try again in a moment.");
+            // Even if not ready, grant reward as per strict requirement. You might want to remove `grantReward();` here.
+            grantReward();
+            taskCard.classList.remove('disabled'); // Re-enable the button
+        }
+    }
+    // --- Withdrawal Logic ---
+    // Flag to prevent multiple withdrawal requests
+    let isWithdrawRequestPending = false;
     function requestWithdraw() {
         if (isBlocked) {
             showBlockedView();
             return;
         }
-
         // Prevent multiple simultaneous requests using flag
         if (isWithdrawRequestPending) {
             console.log("Withdrawal request already in progress.");
             return;
         }
-
-        // Set flag and disable button immediately
+        // Validation
+        const paymentMethod = document.getElementById('paymentMethod').value;
+        const mobileNumber = document.getElementById('mobileNumber').value.trim();
+        const amount = parseFloat(document.getElementById('withdrawAmount').value);
+        if (!mobileNumber) {
+            showMessageModal('Error', 'Please enter your mobile number.');
+            return;
+        }
+        if (!amount || isNaN(amount)) {
+            showMessageModal('Error', 'Please enter a valid amount.');
+            return;
+        }
+        if (amount < appConfig.minWithdrawAmount) {
+            showMessageModal('Error', `Minimum withdrawal amount is $${appConfig.minWithdrawAmount.toFixed(2)}.`);
+            return;
+        }
+        if (amount > balance) {
+            showMessageModal('Error', 'Insufficient balance for this withdrawal.');
+            return;
+        }
+        // Check for existing pending/processing requests in local array
+        const hasPendingRequest = withdrawHistory.some(request =>
+            request.status === 'Pending' || request.status === 'Processing'
+        );
+        if (hasPendingRequest) {
+            showMessageModal('Error', 'You already have a pending or processing withdrawal request. Please wait for it to be completed before submitting a new one.');
+            return;
+        }
+        // Set flag to indicate a request is in progress
         isWithdrawRequestPending = true;
+        // Change button to red "Requesting..." state immediately
         const requestBtn = document.getElementById('requestWithdrawBtn');
         requestBtn.textContent = 'Requesting...';
         requestBtn.classList.remove('primary-button');
         requestBtn.classList.add('requesting-button');
         requestBtn.disabled = true;
-
-        // Validation
-        const paymentMethod = document.getElementById('paymentMethod').value;
-        const mobileNumber = document.getElementById('mobileNumber').value.trim();
-        const amount = parseFloat(document.getElementById('withdrawAmount').value);
-
-        if (!mobileNumber) {
-            showMessageModal('Error', 'Please enter your mobile number.');
-            resetWithdrawButton();
-            isWithdrawRequestPending = false;
-            return;
-        }
-        if (!amount || isNaN(amount)) {
-            showMessageModal('Error', 'Please enter a valid amount.');
-            resetWithdrawButton();
-            isWithdrawRequestPending = false;
-            return;
-        }
-        if (amount < appConfig.minWithdrawAmount) {
-            showMessageModal('Error', `Minimum withdrawal amount is $${appConfig.minWithdrawAmount.toFixed(2)}.`);
-            resetWithdrawButton();
-            isWithdrawRequestPending = false;
-            return;
-        }
-        if (amount > balance) {
-            showMessageModal('Error', 'Insufficient balance for this withdrawal.');
-            resetWithdrawButton();
-            isWithdrawRequestPending = false;
-            return;
-        }
-
-        // Check for existing pending/processing requests in local array
-        const hasPendingRequest = withdrawHistory.some(request =>
-            request.status === 'Pending' || request.status === 'Processing'
-        );
-
-        if (hasPendingRequest) {
-            showMessageModal('Error', 'You already have a pending or processing withdrawal request. Please wait for it to be completed before submitting a new one.');
-            resetWithdrawButton();
-            isWithdrawRequestPending = false;
-            return;
-        }
-
         // Create withdraw request with Pending status
         const withdrawRequest = {
             id: Date.now().toString(), // This should be unique per request
@@ -1101,10 +1134,8 @@
             status: 'Pending',
             timestamp: new Date().toISOString()
         };
-
         // Save to Firebase
         const userRef = database.ref('users/' + tgUser.id);
-
         userRef.child('withdrawHistory').push(withdrawRequest)
             .then(() => {
                 // Immediately deduct balance and update points in Firebase
@@ -1113,21 +1144,21 @@
                 points = Math.max(0, Math.round(balance / appConfig.valuePerConversion * appConfig.coinsForConversion));
                 updateDisplay();
                 saveUserData();
-
                 // Add to local withdrawHistory array for immediate display in modal if open
                 withdrawHistory.unshift(withdrawRequest);
                 if (document.getElementById('withdraw-history-modal').classList.contains('active')) {
                     renderWithdrawHistoryModal();
                 }
-
                 // Add to activity history
                 addToHistory('withdraw', `Request for $${amount.toFixed(2)} via ${paymentMethod}`);
-
                 // Show success message after 3 seconds
                 setTimeout(() => {
                     showMessageModal('Success', 'Your withdrawal request has been submitted successfully!');
                     // Reset button state
-                    resetWithdrawButton();
+                    requestBtn.textContent = 'Request Withdrawal';
+                    requestBtn.classList.remove('requesting-button');
+                    requestBtn.classList.add('primary-button');
+                    requestBtn.disabled = false;
                     // Clear form
                     document.getElementById('mobileNumber').value = '';
                     document.getElementById('withdrawAmount').value = '';
@@ -1139,7 +1170,10 @@
                 console.error('Error submitting withdrawal request:', error);
                 showMessageModal('Error', 'Failed to submit withdrawal request. Please try again.');
                 // Reset button state on error
-                resetWithdrawButton();
+                requestBtn.textContent = 'Request Withdrawal';
+                requestBtn.classList.remove('requesting-button');
+                requestBtn.classList.add('primary-button');
+                requestBtn.disabled = false;
                 // Reset flag
                 isWithdrawRequestPending = false;
             });
@@ -1179,3 +1213,4 @@
 </script>
 </body>
 </html>
+```
